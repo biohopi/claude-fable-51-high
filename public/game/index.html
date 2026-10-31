@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Erangel Strike Enhanced | Battleground</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{width:100%;height:100%;overflow:hidden;background:#0b0f14;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#fff;user-select:none}
+  canvas{display:block}
+  #ui{position:fixed;inset:0;pointer-events:none;z-index:10}
+  #crosshair{position:absolute;left:50%;top:50%;width:22px;height:22px;margin:-11px 0 0 -11px;opacity:.9}
+  #crosshair:before,#crosshair:after{content:"";position:absolute;background:#fff;box-shadow:0 0 2px #000}
+  #crosshair:before{left:50%;top:0;width:2px;height:100%;margin-left:-1px}
+  #crosshair:after{top:50%;left:0;height:2px;width:100%;margin-top:-1px}
+  #crosshair.hit:before,#crosshair.hit:after{background:#ff3b3b}
+  #hitmarker{position:absolute;left:50%;top:50%;width:30px;height:30px;margin:-15px 0 0 -15px;opacity:0;transition:opacity .12s}
+  #hitmarker:before,#hitmarker:after{content:"";position:absolute;width:12px;height:2px;background:#fff;left:9px;top:14px}
+  #hitmarker:before{transform:rotate(45deg)}
+  #hitmarker:after{transform:rotate(-45deg)}
+  #hitmarker.on{opacity:1}
+  #minimap{position:absolute;top:14px;right:14px;width:172px;height:172px;border:2px solid rgba(255,255,255,.35);border-radius:8px;background:rgba(10,20,15,.55);overflow:hidden;backdrop-filter:blur(3px)}
+  #minimap canvas{width:100%;height:100%}
+  #alive{position:absolute;top:192px;right:14px;background:rgba(0,0,0,.5);padding:6px 12px;border-radius:6px;font-size:13px;font-weight:700;letter-spacing:.5px;border:1px solid rgba(255,255,255,.15)}
+  #teamBadge{position:absolute;top:224px;right:14px;padding:5px 12px;border-radius:6px;font-size:11px;font-weight:800;letter-spacing:1.5px;border:1px solid rgba(255,255,255,.2)}
+  #killfeed{position:absolute;top:14px;left:14px;display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600}
+  #killfeed div{background:rgba(0,0,0,.55);padding:4px 10px;border-radius:4px;border-left:3px solid #ffd54a;animation:fadein .2s}
+  @keyframes fadein{from{opacity:0;transform:translateX(-8px)}to{opacity:1}}
+  #pickupToast{position:absolute;left:50%;bottom:180px;transform:translateX(-50%);display:flex;flex-direction:column;gap:4px;align-items:center;pointer-events:none}
+  #pickupToast div{background:rgba(0,0,0,.7);padding:5px 14px;border-radius:5px;font-size:12px;font-weight:800;letter-spacing:1.5px;animation:rise .3s ease-out}
+  @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  #bottom{position:absolute;left:0;right:0;bottom:0;padding:0 16px 16px;display:flex;align-items:flex-end;justify-content:space-between;gap:16px}
+  #hpwrap{flex:1;max-width:520px}
+  #hpbar{height:14px;background:rgba(0,0,0,.6);border:2px solid rgba(255,255,255,.3);border-radius:3px;overflow:hidden}
+  #hpfill{height:100%;width:100%;background:linear-gradient(90deg,#43d17a,#7fe6a5);transition:width .15s}
+  #hpfill.low{background:linear-gradient(90deg,#d14343,#ff7a7a)}
+  #hptext{font-size:11px;opacity:.75;margin-top:3px;letter-spacing:1px}
+  #ammo{text-align:right;font-variant-numeric:tabular-nums;text-shadow:0 2px 6px #000}
+  #ammo .mag{font-size:34px;font-weight:800;line-height:1}
+  #ammo .res{font-size:15px;opacity:.7}
+  #ammo .wname{font-size:12px;letter-spacing:2px;opacity:.85;margin-bottom:2px}
+  #slots{display:flex;gap:6px;justify-content:flex-end;margin-top:6px;font-size:11px}
+  #slots .s{background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.2);border-radius:4px;padding:2px 8px;opacity:.55}
+  #slots .s.on{opacity:1;border-color:#ffd54a}
+  #zone{position:absolute;top:14px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.5);padding:6px 16px;border-radius:6px;font-size:12px;font-weight:700;letter-spacing:1px;border:1px solid rgba(255,255,255,.15);text-align:center}
+  #zone .t{color:#6ec9ff}
+  #msg{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);font-size:26px;font-weight:800;text-align:center;text-shadow:0 4px 16px #000;letter-spacing:1px;opacity:0;transition:opacity .3s}
+  #msg.on{opacity:1}
+  #msg small{display:block;font-size:14px;font-weight:600;opacity:.8;margin-top:6px;letter-spacing:2px}
+  #vig{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 140px 30px rgba(200,0,0,0);transition:box-shadow .12s}
+  #prompt{position:absolute;left:50%;top:58%;transform:translateX(-50%);background:rgba(0,0,0,.65);padding:8px 16px;border-radius:6px;font-size:13px;font-weight:600;opacity:0;transition:opacity .15s;border:1px solid rgba(255,255,255,.3);pointer-events:none;cursor:pointer}
+  #prompt.on{opacity:1;pointer-events:auto}
+  #scope{position:absolute;inset:0;opacity:0;transition:opacity .1s;pointer-events:none;background:radial-gradient(circle at 50% 50%,transparent 29%,#000 31%);z-index:9}
+  #scope.on{opacity:1}
+  #scope::before{content:"";position:absolute;left:32%;right:32%;top:50%;height:2px;margin-top:-1px;background:rgba(0,0,0,.95);box-shadow:0 0 0 1px rgba(255,255,255,.15)}
+  #scope::after{content:"";position:absolute;top:32%;bottom:32%;left:50%;width:2px;margin-left:-1px;background:rgba(0,0,0,.95);box-shadow:0 0 0 1px rgba(255,255,255,.15)}
+  #hudTopLeft{position:absolute;top:14px;left:14px;display:flex;gap:8px;z-index:15;pointer-events:auto;flex-direction:column;align-items:flex-start}
+  .utilBtn{width:40px;height:40px;border-radius:8px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);display:flex;align-items:center;justify-content:center;font-size:16px;color:#fff;cursor:pointer;transition:.15s;pointer-events:auto}
+  .utilBtn:active{transform:scale(.94);background:rgba(255,255,255,.18)}
+  .utilBtn svg{width:20px;height:20px;fill:currentColor}
+  .utilBtn.active{border-color:#ffd54a;color:#ffd54a;background:rgba(255,213,74,.15)}
+  #pauseScreen{position:fixed;inset:0;z-index:45;background:rgba(3,6,10,.78);display:none;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
+  #pauseScreen.on{display:flex}
+  .pauseInner{text-align:center;display:flex;flex-direction:column;gap:14px;align-items:center}
+  .pauseInner h2{font-size:44px;letter-spacing:14px;font-weight:900;background:linear-gradient(90deg,#ffd54a,#ff7a3d);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .pauseInner button{padding:14px 52px;font-size:16px;font-weight:800;letter-spacing:3px;border:none;border-radius:6px;background:linear-gradient(90deg,#ffd54a,#ff8a3d);color:#111;cursor:pointer;min-width:260px}
+  .pauseInner button:active{transform:scale(.97)}
+  .pauseInner #stopBtn{background:linear-gradient(90deg,#dc2626,#ef4444);color:#fff}
+  .pauseInner .hint{font-size:11px;opacity:.5;letter-spacing:2px;margin-top:-2px}
+  #touch{position:fixed;inset:0;z-index:20;display:none;pointer-events:none}
+  #touch.on{display:block}
+  #touch.editing{background:rgba(0,0,0,0.15)}
+  #touch.editing .tctrl{outline:2px dashed rgba(255,213,74,.85);outline-offset:4px;cursor:move}
+  .tctrl{position:absolute;pointer-events:auto;touch-action:none}
+  .stick{width:130px;height:130px;border-radius:50%;border:2px solid rgba(255,255,255,.25);background:rgba(0,0,0,.2);transition:border-color .15s}
+  .stick.sprint{border-color:rgba(255,213,74,.9);box-shadow:0 0 12px rgba(255,213,74,.35)}
+  .knob{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;background:rgba(255,255,255,.28);border:2px solid rgba(255,255,255,.5);pointer-events:none;transition:background .12s,border-color .12s}
+  .stick.sprint .knob{background:rgba(255,213,74,.75);border-color:#ffd54a}
+  .btn{border-radius:50%;background:rgba(255,255,255,.14);border:2px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;letter-spacing:.5px}
+  #bFire{width:92px;height:92px;background:rgba(255,60,60,.22);border-color:rgba(255,90,90,.6)}
+  #bScope{width:70px;height:70px;background:rgba(120,190,255,.2);border-color:rgba(120,190,255,.55);font-size:10px}
+  #bScope.active{background:rgba(120,190,255,.55);border-color:#7fbaff;color:#fff}
+  #bRel{width:62px;height:62px}
+  #bJump{width:62px;height:62px}
+  #bCrouch{width:62px;height:62px}
+  #bSwap{width:62px;height:62px}
+  #bHeal{width:62px;height:62px}
+  #bPick{width:70px;height:70px;background:rgba(255,213,74,.28);border-color:rgba(255,213,74,.75);display:none}
+  #bPick.on{display:flex}
+  #editBar{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);display:none;gap:8px;z-index:60;pointer-events:auto;background:rgba(0,0,0,.75);padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,.2);box-shadow:0 8px 24px rgba(0,0,0,.5)}
+  #editBar.on{display:flex}
+  #editBar button{padding:10px 18px;font-size:13px;font-weight:800;letter-spacing:1px;border:none;border-radius:6px;background:rgba(255,255,255,.15);color:#fff;cursor:pointer}
+  #editBar button.primary{background:linear-gradient(90deg,#ffd54a,#ff8a3d);color:#111}
+  #editBar button:active{transform:scale(.96)}
+  #start{position:fixed;inset:0;z-index:50;display:flex;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%,#16212e,#070a0e);gap:14px;text-align:center;padding:20px;overflow-y:auto}
+  #start h1{font-size:38px;letter-spacing:8px;font-weight:900;background:linear-gradient(90deg,#ffd54a,#ff7a3d);-webkit-background-clip:text;background-clip:text;color:transparent}
+  #start .sub{font-size:11px;opacity:.55;letter-spacing:2px;margin-bottom:6px}
+  #lobby{display:flex;flex-direction:column;gap:8px;width:min(520px,94vw);background:rgba(0,0,0,.4);padding:16px;border-radius:12px;border:1px solid rgba(255,255,255,.1)}
+  #roomPanel{display:none;flex-direction:column;gap:12px;border-top:1px solid rgba(255,255,255,.16);padding-top:14px;margin-top:8px;text-align:left}
+  #roomPanel.on{display:flex}
+  .room-heading{display:flex;justify-content:space-between;align-items:center;gap:10px}
+  .room-code{font-size:22px;font-weight:900;letter-spacing:4px;color:#ffd54a}
+  .room-sub{font-size:10px;opacity:.65;letter-spacing:1.2px;margin-top:3px}
+  .room-mini-btn{padding:8px 10px;border:1px solid #52606e;border-radius:5px;background:#1c2733;color:#fff;font-size:10px;font-weight:800;letter-spacing:1px}
+  #roomRoster{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .team-roster{border:1px solid rgba(255,255,255,.13);border-radius:7px;padding:10px;min-width:0}
+  .team-roster h3{font-size:11px;letter-spacing:1.5px;margin-bottom:8px}
+  .team-roster.blue h3{color:#77bdff}.team-roster.red h3{color:#ff8585}
+  .roster-slot{display:flex;justify-content:space-between;gap:6px;padding:6px 7px;margin-top:4px;background:rgba(255,255,255,.055);border-radius:4px;font-size:10px;overflow-wrap:anywhere}
+  .roster-slot.empty{opacity:.4;border:1px dashed rgba(255,255,255,.15);background:transparent}
+  .roster-slot.bot{color:#ffdca1}
+  #roomStartBtn{width:100%;padding:13px;border:0;border-radius:5px;background:linear-gradient(90deg,#ffd54a,#ff8a3d);color:#111;font-weight:900;letter-spacing:2px}
+  #roomStartBtn:disabled{opacity:.35}
+  #roomWait{font-size:11px;opacity:.7;text-align:center;min-height:14px}
+  .setting{display:flex;align-items:center;gap:10px;font-size:12px;font-weight:700;letter-spacing:1px}
+  .setting label{width:120px;text-align:left;opacity:.85;font-size:11px}
+  .setting input[type=range]{flex:1;accent-color:#ffd54a}
+  .setting .val{width:32px;text-align:right;font-variant-numeric:tabular-nums;color:#ffd54a;font-size:11px}
+  .setting input[type=text]{flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:8px 10px;color:#fff;font-size:14px;letter-spacing:3px;text-align:center;font-weight:800;text-transform:uppercase}
+  .teamPick{display:flex;gap:8px}
+  .teamBtn{padding:8px 16px;border:2px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);border-radius:6px;color:#fff;font-weight:800;font-size:11px;letter-spacing:1.5px;cursor:pointer}
+  .teamBtn.on[data-team="0"]{background:rgba(59,130,246,.4);border-color:#3b82f6}
+  .teamBtn.on[data-team="1"]{background:rgba(239,68,68,.4);border-color:#ef4444}
+  .lobbyDivider{display:flex;align-items:center;gap:8px;margin:4px 0;opacity:.4;font-size:10px;letter-spacing:2px;font-weight:800}
+  .lobbyDivider:before,.lobbyDivider:after{content:"";flex:1;height:1px;background:rgba(255,255,255,.2)}
+  .lobbyActions{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap;justify-content:center}
+  .lobbyActions button{flex:1;min-width:110px;padding:12px 14px;font-size:13px;font-weight:800;letter-spacing:1.5px;border:none;border-radius:6px;cursor:pointer}
+  #createBtn{background:linear-gradient(90deg,#ffd54a,#ff8a3d);color:#111}
+  #joinBtn{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.25)}
+  #offlineBtn{background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.18)}
+  .lobbyActions button:active{transform:scale(.97)}
+  #lobbyMsg{font-size:12px;opacity:.75;min-height:16px;letter-spacing:1px;color:#ffd54a}
+  #lootLegend{display:flex;gap:14px;justify-content:center;font-size:10px;letter-spacing:1px;margin-top:2px;opacity:.7}
+  #lootLegend span{display:flex;align-items:center;gap:4px}
+  #lootLegend .dot{width:10px;height:10px;border-radius:2px;display:inline-block}
+  #start .attr{font-size:10px;opacity:.35;letter-spacing:2px;margin-top:10px}
+  #start{gap:10px}
+  #lobby{width:min(640px,96vw);gap:10px}
+  .setup-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .team-card{border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:12px;background:rgba(255,255,255,.03);text-align:left}
+  .team-card.blue{border-color:rgba(59,130,246,.45);box-shadow:inset 0 0 40px rgba(59,130,246,.08)}
+  .team-card.red{border-color:rgba(239,68,68,.45);box-shadow:inset 0 0 40px rgba(239,68,68,.08)}
+  .team-card h3{font-size:12px;letter-spacing:2.5px;margin-bottom:10px}
+  .team-card.blue h3{color:#8ec5ff}.team-card.red h3{color:#ff9b9b}
+  .stepper{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0}
+  .stepper label{font-size:10px;letter-spacing:1.5px;opacity:.75;font-weight:800}
+  .stepper-ctrl{display:flex;align-items:center;gap:6px}
+  .stepper-ctrl button{width:36px;height:36px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.1);color:#fff;font-size:20px;font-weight:800;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center}
+  .stepper-ctrl button:hover{background:rgba(255,213,74,.25);border-color:#ffd54a}
+  .stepper-ctrl button:active{transform:scale(.94)}
+  .stepper-ctrl button:disabled{opacity:.3;cursor:not-allowed;transform:none}
+  .stepper-ctrl .val{min-width:34px;text-align:center;font-size:20px;font-weight:900;color:#ffd54a;font-variant-numeric:tabular-nums}
+  .stepper-ctrl.small button{width:28px;height:28px;font-size:16px}
+  .stepper-ctrl.small .val{font-size:15px;min-width:30px}
+  .rule-label{font-size:10px;letter-spacing:1.5px;opacity:.6;font-weight:800;margin-right:8px}
+  .setup-hint{font-size:10.5px;opacity:.55;letter-spacing:.6px;line-height:1.5;text-align:center}
+  .joinRow{display:flex;gap:8px}
+  .joinRow input{flex:1;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:10px 12px;color:#fff;font-size:15px;letter-spacing:4px;text-align:center;font-weight:800;text-transform:uppercase}
+  .joinRow button{padding:10px 18px;border:1px solid rgba(255,255,255,.25);border-radius:6px;background:rgba(255,255,255,.12);color:#fff;font-weight:800;letter-spacing:1.5px;cursor:pointer;font-size:12px}
+  .lobbyActions button{padding:14px}
+  .room-btns{display:flex;gap:6px}
+  .room-mini-btn{cursor:pointer}
+  .room-mini-btn.danger{border-color:#7a3a3a;background:#3a1c1c}
+  .roster-slot.me{outline:1px solid rgba(255,213,74,.6)}
+  .roster-slot .tag{opacity:.6;font-size:9px;letter-spacing:1px}
+  .roster-slot .kick{background:none;border:none;color:#ff8585;font-size:10px;cursor:pointer;font-weight:800}
+  #chatBox{border:1px solid rgba(255,255,255,.12);border-radius:7px;background:rgba(0,0,0,.3);display:flex;flex-direction:column}
+  #chatLog{height:88px;overflow-y:auto;padding:8px;font-size:11px;display:flex;flex-direction:column;gap:3px;text-align:left}
+  #chatLog .sys{opacity:.55;font-style:italic}
+  #chatLog b.blue{color:#8ec5ff}#chatLog b.red{color:#ff9b9b}
+  #chatForm{display:flex;border-top:1px solid rgba(255,255,255,.1)}
+  #chatForm input{flex:1;background:transparent;border:none;padding:8px 10px;color:#fff;font-size:12px;outline:none}
+  #chatForm button{background:rgba(255,255,255,.1);border:none;color:#fff;font-size:10px;font-weight:800;letter-spacing:1px;padding:0 12px;cursor:pointer}
+  #tdm{position:absolute;top:14px;left:50%;transform:translateX(-50%);display:none;align-items:center;gap:12px;background:rgba(0,0,0,.55);padding:6px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.15);font-weight:900;font-variant-numeric:tabular-nums}
+  #tdm.on{display:flex}
+  #tdm .b,#tdm .r{font-size:24px;min-width:40px;text-align:center}
+  #tdm .b{color:#8ec5ff}#tdm .r{color:#ff9b9b}
+  #tdm .time{font-size:13px;letter-spacing:1px;opacity:.85;padding:0 6px;border-left:1px solid rgba(255,255,255,.2);border-right:1px solid rgba(255,255,255,.2)}
+  #tdm .lim{font-size:9px;letter-spacing:1.5px;opacity:.55}
+  #respawn{position:absolute;left:50%;top:52%;transform:translateX(-50%);font-size:14px;letter-spacing:3px;font-weight:800;opacity:0;transition:opacity .2s;background:rgba(0,0,0,.6);padding:8px 18px;border-radius:6px}
+  #respawn.on{opacity:1}
+  #dmgDir{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .25s;background:radial-gradient(ellipse at var(--dx,50%) var(--dy,50%),rgba(255,40,40,.55),transparent 45%)}
+  #dmgDir.on{opacity:1;transition:opacity .05s}
+  #results{position:fixed;inset:0;z-index:48;background:rgba(3,6,10,.86);display:none;align-items:center;justify-content:center;backdrop-filter:blur(8px);padding:16px}
+  #results.on{display:flex}
+  .resultsInner{width:min(560px,96vw);text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center}
+  .results-eyebrow{font-size:11px;letter-spacing:4px;opacity:.6}
+  .resultsInner h2{font-size:52px;letter-spacing:10px;font-weight:900;background:linear-gradient(90deg,#ffd54a,#ff7a3d);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .resultsInner h2.lose{background:linear-gradient(90deg,#ff7a7a,#b91c1c);-webkit-background-clip:text;background-clip:text}
+  .results-score{display:flex;gap:16px;align-items:center;font-size:40px;font-weight:900}
+  .results-score .blue{color:#8ec5ff}.results-score .red{color:#ff9b9b}.results-score i{opacity:.4;font-style:normal}
+  #resultsTable{width:100%;border-collapse:collapse;font-size:12px;background:rgba(255,255,255,.04);border-radius:8px;overflow:hidden}
+  #resultsTable th{font-size:9px;letter-spacing:2px;opacity:.55;padding:8px;text-align:left;border-bottom:1px solid rgba(255,255,255,.1)}
+  #resultsTable td{padding:7px 8px;border-bottom:1px solid rgba(255,255,255,.05)}
+  #resultsTable td.blue{color:#8ec5ff}#resultsTable td.red{color:#ff9b9b}
+  .results-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+  .results-actions button{padding:13px 32px;font-size:14px;font-weight:800;letter-spacing:2px;border:none;border-radius:6px;cursor:pointer;background:rgba(255,255,255,.14);color:#fff}
+  .results-actions #resultsRematchBtn{background:linear-gradient(90deg,#ffd54a,#ff8a3d);color:#111}
+  .resultsInner .hint{font-size:11px;opacity:.55;letter-spacing:1.5px}
+  @media (max-width:560px){.setup-grid{grid-template-columns:1fr}#lobby{padding:12px}#start h1{font-size:28px}}
+</style>
+<link rel="stylesheet" href="/fonts/fonts.css"><link rel="stylesheet" href="/game/hud.css"></head>
+<body>
+<div id="start">
+  <h1 id="startTitle">WAREHOUSE</h1>
+  <div class="sub" id="startSub">BLUE vs RED · TEAM DEATHMATCH</div>
+  <div id="lobby">
+    <div id="matchSetup">
+      <div class="setup-grid">
+        <section class="team-card blue">
+          <h3>BLUE TEAM</h3>
+          <div class="stepper"><label>PLAYERS</label><div class="stepper-ctrl"><button type="button" data-step="bluePlayers" data-delta="-1" aria-label="Fewer blue players">−</button><span class="val" id="setBluePlayersVal">0</span><button type="button" data-step="bluePlayers" data-delta="1" aria-label="More blue players">+</button></div></div>
+          <div class="stepper"><label>BOTS</label><div class="stepper-ctrl"><button type="button" data-step="blueBots" data-delta="-1" aria-label="Fewer blue bots">−</button><span class="val" id="setBlueBotsVal">0</span><button type="button" data-step="blueBots" data-delta="1" aria-label="More blue bots">+</button></div></div>
+        </section>
+        <section class="team-card red">
+          <h3>RED TEAM</h3>
+          <div class="stepper"><label>PLAYERS</label><div class="stepper-ctrl"><button type="button" data-step="redPlayers" data-delta="-1" aria-label="Fewer red players">−</button><span class="val" id="setRedPlayersVal">0</span><button type="button" data-step="redPlayers" data-delta="1" aria-label="More red players">+</button></div></div>
+          <div class="stepper"><label>BOTS</label><div class="stepper-ctrl"><button type="button" data-step="redBots" data-delta="-1" aria-label="Fewer red bots">−</button><span class="val" id="setRedBotsVal">0</span><button type="button" data-step="redBots" data-delta="1" aria-label="More red bots">+</button></div></div>
+        </section>
+      </div>
+      <div class="setting"><label>YOUR TEAM</label><div class="teamPick"><button class="teamBtn on" data-team="0">BLUE</button><button class="teamBtn" data-team="1">RED</button></div></div>
+      <div class="setting" id="tdmRules"><label>TDM RULES</label><div class="stepper-ctrl small"><button type="button" data-step="scoreLimit" data-delta="-10">−</button><span class="val" id="setScoreLimitVal">40</span><button type="button" data-step="scoreLimit" data-delta="10">+</button></div><span class="rule-label">KILLS</span><div class="stepper-ctrl small"><button type="button" data-step="timeLimit" data-delta="-1">−</button><span class="val" id="setTimeLimitVal">10</span><button type="button" data-step="timeLimit" data-delta="1">+</button></div><span class="rule-label">MIN</span></div>
+      <div class="setup-hint" id="setupHint">Players and bots start at 0 — press + to add slots to each team. You always occupy one slot on your team.</div>
+    </div>
+    <div class="lobbyActions" id="lobbyActions">
+      <button id="offlineBtn">PLAY OFFLINE</button>
+      <button id="createBtn">CREATE ONLINE ROOM</button>
+    </div>
+    <div class="joinRow" id="joinRow">
+      <input type="text" id="setRoom" placeholder="ROOM CODE" maxlength="6" autocomplete="off" spellcheck="false">
+      <button id="joinBtn">JOIN ROOM</button>
+    </div>
+    <div id="lobbyMsg"></div>
+    <div id="roomPanel">
+      <div class="room-heading"><div><div class="room-sub">ROOM CODE · SHARE WITH FRIENDS</div><div class="room-code" id="roomCodeDisplay">------</div></div><div class="room-btns"><button class="room-mini-btn" id="copyRoomBtn">COPY INVITE LINK</button><button class="room-mini-btn danger" id="leaveRoomBtn">LEAVE</button></div></div>
+      <div class="room-sub" id="roomStatus">Waiting for teammates…</div>
+      <div id="roomRoster">
+        <section class="team-roster blue"><h3>BLUE TEAM</h3><div id="blueRoster"></div></section>
+        <section class="team-roster red"><h3>RED TEAM</h3><div id="redRoster"></div></section>
+      </div>
+      <div id="chatBox"><div id="chatLog"></div><form id="chatForm"><input id="chatInput" maxlength="160" placeholder="Say something to the room…" autocomplete="off"><button type="submit">SEND</button></form></div>
+      <button id="roomStartBtn">START MATCH</button>
+      <div id="roomWait"></div>
+    </div>
+  </div>
+  <div class="attr">ERANGEL STRIKE ENHANCED · BLUE vs RED</div>
+</div>
+
+<div id="results">
+  <div class="resultsInner">
+    <div class="results-eyebrow" id="resultsEyebrow">MATCH OVER</div>
+    <h2 id="resultsTitle">VICTORY</h2>
+    <div class="results-score"><span class="blue" id="resultsBlue">0</span><i>:</i><span class="red" id="resultsRed">0</span></div>
+    <table id="resultsTable"><thead><tr><th>OPERATIVE</th><th>TEAM</th><th>K</th><th>D</th></tr></thead><tbody></tbody></table>
+    <div class="results-actions"><button id="resultsRematchBtn">REMATCH</button><button id="resultsLobbyBtn">RETURN TO LOBBY</button></div>
+    <div class="hint" id="resultsHint"></div>
+  </div>
+</div>
+
+<div id="ui">
+  <div id="vig"></div><div id="dmgDir"></div><div id="scope"><div class="optic-ring"><div class="reticle-h"></div><div class="reticle-v"></div><div class="reticle-dot"></div><div class="reticle-marks"></div></div><span id="optic-label"></span></div><div id="crosshair"></div><div id="hitmarker"></div>
+  <div id="minimap"><canvas id="mmc" width="256" height="256"></canvas></div>
+  <div id="alive">ALIVE 21</div>
+  <div id="teamBadge">TEAM</div>
+  <div id="killfeed"></div>
+  <div id="pickupToast"></div>
+  <div id="zone"><span class="t">ZONE</span> <span id="zoneTimer">--</span></div>
+  <div id="tdm"><span class="b" id="tdmBlue">0</span><span class="time" id="tdmTime">10:00</span><span class="r" id="tdmRed">0</span><span class="lim" id="tdmLimit">FIRST TO 40</span></div>
+  <div id="respawn"></div>
+  <div id="msg"></div>
+  <div id="prompt"></div>
+  <div id="bottom">
+    <div id="hpwrap"><div id="hpbar"><div id="hpfill"></div></div><div id="hptext">100 HP</div></div>
+    <div id="ammo"><div class="wname" id="wname">FISTS</div><div><span class="mag" id="mag">0</span><span class="res"> / <span id="res">0</span></span></div><div id="slots"><div class="s on" id="s0">—</div><div class="s" id="s1">—</div></div></div>
+  </div>
+</div>
+
+<div id="hudTopLeft"><button class="utilBtn" id="btnPerspective" title="Change perspective (V)">TPP</button><button class="utilBtn" id="btnBackpack" title="Open backpack (B)">BAG <span id="backpack-count">4</span></button><button class="utilBtn" id="btnSwapDesktop" title="Switch main weapon (Q)">SWAP</button><button class="utilBtn" id="btnSettings" title="Settings">SET</button>
+  <div class="utilBtn" id="btnFullscreen" title="Fullscreen"><svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg></div>
+  <div class="utilBtn" id="btnPause" title="Pause"><svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg></div>
+  <div class="utilBtn" id="btnLayout" title="Customize layout" style="display:none"><svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg></div>
+</div>
+
+<div id="pauseScreen">
+  <div class="pauseInner">
+    <h2>STAND BY.</h2>
+    <button id="resumeBtn">RESUME</button>
+    <button id="stopBtn">RETURN TO LOBBY</button>
+    <div class="hint">YOUR NEXT MOVE IS UP TO YOU</div>
+  </div>
+</div>
+
+<div id="touch">
+  <div class="stick tctrl" id="stkL" data-id="stkL"><div class="knob" id="knbL"></div></div>
+  <div class="btn tctrl" id="bFire" data-id="bFire">FIRE</div>
+  <div class="btn tctrl" id="bScope" data-id="bScope">SCOPE</div>
+  <div class="btn tctrl" id="bRel" data-id="bRel">R</div>
+  <div class="btn tctrl" id="bJump" data-id="bJump">JMP</div>
+  <div class="btn tctrl" id="bCrouch" data-id="bCrouch">CRCH</div>
+  <div class="btn tctrl" id="bSwap" data-id="bSwap">SWAP</div>
+  <div class="btn tctrl" id="bHeal" data-id="bHeal">HEAL</div>
+  <div class="btn tctrl" id="bPick" data-id="bPick">PICK</div>
+</div>
+
+<div id="editBar">
+  <button id="editReset">RESET</button>
+  <button id="editCancel">CANCEL</button>
+  <button id="editSave" class="primary">SAVE</button>
+</div>
+
+<div id="desktopHints"><span><b>W A S D</b> MOVE</span><span><b>F</b> PICK UP</span><span><b>R</b> RELOAD</span><span><b>RMB</b> AIM</span><span><b>V</b> PERSPECTIVE</span><span><b>B</b> BACKPACK</span></div>
+<script>
+let erangelBooted=false;
+window.addEventListener('message',e=>{ if(e.data&&e.data.source==='erangel-lobby'&&e.data.type==='initialize') erangelBooted=true; });
+window.addEventListener('error',event=>{
+  if(erangelBooted){ console.error('[erangel] runtime error:', event.message); return; }
+  parent.postMessage({source:'erangel-game',type:'error',message:String(event.message||'').includes('WebGL')?'WebGL is unavailable. Enable hardware acceleration and try again.':'The battleground could not initialize. Please reload and try again.'},location.origin);
+});
+</script>
+<script type="module" src="/game/engine.js"></script></body></html>
